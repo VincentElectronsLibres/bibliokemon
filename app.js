@@ -10,6 +10,44 @@
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const STORE_KEY = "bibliokemon_collection_v1";
 
+// ---------- Traduction FR -> EN ----------
+// La base pokemontcg.io n'indexe que les noms anglais des cartes.
+// Ce dictionnaire (généré depuis PokeAPI) permet de chercher avec le nom
+// français imprimé sur la carte (ex. "Dracaufeu" -> "Charizard").
+let FR_EN_DICT = {};
+let dictReady = fetch("fr_en_pokemon.json").then(r => r.ok ? r.json() : {}).then(d => { FR_EN_DICT = d; }).catch(()=>{});
+
+const RARITY_STOPWORDS = new Set([
+  "brillant","brillante","brillants","brillantes","doree","doree","doree",
+  "arc-en-ciel","arcenciel","prisme","prismatique","holo","holographique",
+  "secrete","secret","full","art","alternative","radieux","radieuse",
+]);
+
+function normalizeAccents(s){
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+// Transforme la requête tapée par l'utilisateur (potentiellement en français,
+// avec des mots de rareté type "brillant") en requête compatible avec les
+// noms anglais de la base pokemontcg.io.
+function translateQuery(raw){
+  const words = raw.split(/\s+/).filter(Boolean);
+  let translated = [];
+  for(const w of words){
+    const norm = normalizeAccents(w);
+    if(/^\d+$/.test(norm)) continue; // les numéros sont gérés séparément
+    if(RARITY_STOPWORDS.has(norm)) continue;
+    if(norm === "et" || norm === "and"){ translated.push("&"); continue; }
+    if(FR_EN_DICT[norm]) translated.push(FR_EN_DICT[norm]);
+    else translated.push(w);
+  }
+  // Cartes "en équipe" (ex. Noctali & Darkrai) : on cherche sur le 1er nom,
+  // plus fiable que d'essayer de matcher toute la combinaison.
+  const ampIdx = translated.indexOf("&");
+  if(ampIdx > 0) translated = translated.slice(0, ampIdx);
+  return translated.join(" ").trim();
+}
+
 // ---------- Utilitaires stockage ----------
 function loadCollection(){
   try{
@@ -51,20 +89,32 @@ function extractPrices(cardData){
 }
 
 // ---------- Appel API : recherche ----------
-async function searchCards(query){
-  const q = query.trim();
-  if(!q) return [];
-  // On tente de séparer "nom + numéro" (ex: "Groudon 199")
-  const numMatch = q.match(/(\d{1,4})\s*$/);
-  let searchQ = `name:"*${q.replace(/\d+\s*$/,'').trim()}*"`;
-  if(!q.replace(/\d+\s*$/,'').trim()){
-    searchQ = `name:"*${q}*"`;
-  }
+async function runNameQuery(nameForQuery){
+  const searchQ = `name:"*${nameForQuery}*"`;
   const url = `${API_BASE}?q=${encodeURIComponent(searchQ)}&pageSize=20&orderBy=-set.releaseDate`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("Le service de cartes n'a pas répondu (code " + res.status + ")");
   const json = await res.json();
-  let results = json.data || [];
+  return json.data || [];
+}
+
+async function searchCards(query){
+  const q = query.trim();
+  if(!q) return [];
+  await dictReady; // s'assure que le dictionnaire FR->EN est chargé
+
+  const numMatch = q.match(/(\d{1,4})\s*$/);
+  const rawName = q.replace(/\d+\s*$/, "").trim() || q;
+  const translatedName = translateQuery(rawName) || rawName;
+
+  // 1) on essaie avec le nom traduit (anglais) ; 2) si rien, on retente avec
+  // le texte brut tapé par l'utilisateur (au cas où c'était déjà en anglais
+  // ou que la traduction a été trop agressive).
+  let results = await runNameQuery(translatedName);
+  if(!results.length && normalizeAccents(translatedName) !== normalizeAccents(rawName)){
+    results = await runNameQuery(rawName);
+  }
+
   if(numMatch){
     const num = numMatch[1];
     results = results.filter(c => (c.number || "").replace(/^0+/,'') === num.replace(/^0+/,'')).concat(
@@ -250,7 +300,7 @@ async function runSearch(){
     const results = await searchCards(q);
     els.btnSearch.disabled = false;
     if(!results.length){
-      els.searchStatus.textContent = "Aucune carte trouvée. Essaie un autre nom ou orthographe.";
+      els.searchStatus.textContent = "Aucune carte trouvée. Tape juste le nom du Pokémon (ex. « Mew », « Dracaufeu »), sans mot comme « brillant » — et vérifie l'orthographe.";
       return;
     }
     els.searchStatus.textContent = `${results.length} résultat(s)`;

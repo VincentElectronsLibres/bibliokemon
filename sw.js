@@ -4,6 +4,7 @@ const ASSETS = [
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./fr_en_pokemon.json",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
