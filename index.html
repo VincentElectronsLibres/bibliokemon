@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>BiblioKemon</title>
-<meta name="description" content="La collection de cartes Pokémon, cataloguée et estimée.">
+<title>Bibliokemon de Raph</title>
+<meta name="description" content="La collection de cartes Pokémon de Raph, cataloguée et estimée.">
 <meta name="theme-color" content="#141326">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -24,16 +24,23 @@
     <div class="totalSlab__top">
       <span class="brand">
         <span class="brand__mark">B<span class="brand__dot">•</span>K</span>
-        <span class="brand__name">BiblioKemon</span>
-        <span class="brand__version">V3.0</span>
+        <span class="brand__name">Bibliokemon de Raph</span>
+        <span class="brand__version">V2.0</span>
       </span>
       <button id="btnRefreshAll" class="iconBtn" title="Rafraîchir les cotes">
         <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>
       </button>
     </div>
-    <div class="totalSlab__label">Valeur totale de la collection</div>
-    <div class="totalSlab__value" id="totalValue">— €</div>
-    <div class="totalSlab__delta" id="totalDelta"></div>
+    <div class="totalSlab__stats">
+      <div class="totalSlab__stat">
+        <div class="totalSlab__label">Valeur internet</div>
+        <div class="totalSlab__value" id="totalInternetValue">— €</div>
+      </div>
+      <div class="totalSlab__stat">
+        <div class="totalSlab__label">Estimation de Raph</div>
+        <div class="totalSlab__value totalSlab__value--raph" id="totalRaphValue">— €</div>
+      </div>
+    </div>
   </header>
 
   <!-- ===== VIEW: COLLECTION ===== -->
@@ -80,25 +87,53 @@
         <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
       </div>
 
+      <label class="fieldLabel" for="raphValueInput">Valeur estimée de Raph (optionnel)</label>
+      <div class="raphInputRow">
+        <input id="raphValueInput" type="number" inputmode="decimal" min="0" step="0.5" placeholder="Ex : 15">
+        <span class="raphInputRow__suffix">€</span>
+      </div>
+      <p class="hint">Le prix auquel Raph accepterait de vendre cette carte. Tu peux le changer plus tard.</p>
+
       <button id="btnAddToCollection" class="btnPrimary btnPrimary--wide">Ajouter à la collection</button>
     </div>
   </main>
 
   <!-- ===== VIEW: CARD DETAIL ===== -->
   <main id="view-detail" class="view">
-    <button class="backLink" id="btnBackToCollection">&larr; Retour à la collection</button>
+    <button class="backLink" id="btnBackToCollection">&larr; Retour</button>
     <div id="detailContent"></div>
+  </main>
+
+  <!-- ===== VIEW: VENDUES ===== -->
+  <main id="view-sold" class="view">
+    <div class="sectionHead">
+      <h1>Cartes vendues</h1>
+      <span class="countPill" id="soldCount">0 vente</span>
+    </div>
+    <div class="soldTotalCard">
+      <div class="soldTotalCard__label">Total encaissé</div>
+      <div class="soldTotalCard__value" id="soldTotalValue">0,00 €</div>
+    </div>
+    <div id="soldEmptyState" class="emptyState" hidden>
+      <div class="emptyState__badge">Aucune vente</div>
+      <p>Quand Raph vend une carte, ouvre-la et appuie sur « Marquer comme vendue ». Elle apparaîtra ici avec son prix et sa date.</p>
+    </div>
+    <div id="soldList" class="soldList"></div>
   </main>
 
   <!-- ===== BOTTOM NAV ===== -->
   <nav class="tabBar">
     <button class="tabBtn tabBtn--active" data-tab="collection">
-      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/></svg>
+      <svg viewBox="0 0 24 24" width="21" height="21"><path fill="currentColor" d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/></svg>
       <span>Collection</span>
     </button>
     <button class="tabBtn" data-tab="add">
-      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
+      <svg viewBox="0 0 24 24" width="23" height="23"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
       <span>Ajouter</span>
+    </button>
+    <button class="tabBtn" data-tab="sold">
+      <svg viewBox="0 0 24 24" width="21" height="21"><path fill="currentColor" d="M12 1v2.05a8 8 0 0 1 6.95 6.95H21v2h-2.05A8 8 0 0 1 12 18.95V21h-2v-2.05A8 8 0 0 1 3.05 12H1v-2h2.05A8 8 0 0 1 10 3.05V1h2Zm-1 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm.5 1.5v1.1c.86.2 1.5.86 1.5 1.65h-1c0-.3-.3-.55-.7-.55s-.7.25-.7.55c0 .3.3.45.9.65 1 .3 1.5.75 1.5 1.5 0 .8-.64 1.45-1.5 1.65v1.05h-1v-1.05c-.86-.2-1.5-.86-1.5-1.65h1c0 .3.3.55.7.55s.7-.25.7-.55c0-.3-.3-.45-.9-.65-1-.3-1.5-.75-1.5-1.5 0-.8.64-1.45 1.5-1.65V7.5h1Z"/></svg>
+      <span>Vendues</span>
     </button>
   </nav>
 

@@ -1,9 +1,12 @@
 /* =========================================================
-   BiblioKemon — logique de l'application
+   BiblioKemon de Raph — logique de l'application
    Source des cartes & cotes : pokemontcg.io (API publique)
      - tcgplayer.prices   -> marché US, en $
-     - cardmarket.prices  -> marché européen, en €  (référence principale,
-       plus pertinente pour un collectionneur en Belgique)
+     - cardmarket.prices  -> marché européen, en €  ("valeur internet")
+   En plus de la valeur internet, chaque carte a une "valeur estimée de
+   Raph" : le prix auquel lui accepterait de la vendre. Modifiable à tout
+   moment. Les cartes vendues sortent de la collection active et vont dans
+   l'onglet "Vendues" avec leur prix et leur date de vente.
    Stockage : localStorage du téléphone (collection + historique de prix).
    ========================================================= */
 
@@ -11,9 +14,6 @@ const API_BASE = "https://api.pokemontcg.io/v2/cards";
 const STORE_KEY = "bibliokemon_collection_v1";
 
 // ---------- Traduction FR -> EN ----------
-// La base pokemontcg.io n'indexe que les noms anglais des cartes.
-// Ce dictionnaire (généré depuis PokeAPI) permet de chercher avec le nom
-// français imprimé sur la carte (ex. "Dracaufeu" -> "Charizard").
 let FR_EN_DICT = {};
 let dictReady = fetch("fr_en_pokemon.json").then(r => r.ok ? r.json() : {}).then(d => { FR_EN_DICT = d; }).catch(()=>{});
 
@@ -27,22 +27,17 @@ function normalizeAccents(s){
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
-// Transforme la requête tapée par l'utilisateur (potentiellement en français,
-// avec des mots de rareté type "brillant") en requête compatible avec les
-// noms anglais de la base pokemontcg.io.
 function translateQuery(raw){
   const words = raw.split(/\s+/).filter(Boolean);
   let translated = [];
   for(const w of words){
     const norm = normalizeAccents(w);
-    if(/^\d+$/.test(norm)) continue; // les numéros sont gérés séparément
+    if(/^\d+$/.test(norm)) continue;
     if(RARITY_STOPWORDS.has(norm)) continue;
     if(norm === "et" || norm === "and"){ translated.push("&"); continue; }
     if(FR_EN_DICT[norm]) translated.push(FR_EN_DICT[norm]);
     else translated.push(w);
   }
-  // Cartes "en équipe" (ex. Noctali & Darkrai) : on cherche sur le 1er nom,
-  // plus fiable que d'essayer de matcher toute la combinaison.
   const ampIdx = translated.indexOf("&");
   if(ampIdx > 0) translated = translated.slice(0, ampIdx);
   return translated.join(" ").trim();
@@ -62,15 +57,16 @@ function saveCollection(list){
   localStorage.setItem(STORE_KEY, JSON.stringify(list));
 }
 function todayStr(){
-  return new Date().toISOString().slice(0,10); // YYYY-MM-DD
+  return new Date().toISOString().slice(0,10);
 }
 function fmtEUR(n){
   if(n === null || n === undefined || isNaN(n)) return "—";
   return n.toLocaleString("fr-BE", { style:"currency", currency:"EUR", maximumFractionDigits: n < 20 ? 2 : 0 });
 }
 function fmtDateShort(d){
+  if(!d) return "";
   const dt = new Date(d);
-  return dt.toLocaleDateString("fr-BE", { day:"2-digit", month:"short" });
+  return dt.toLocaleDateString("fr-BE", { day:"2-digit", month:"short", year:"numeric" });
 }
 
 // ---------- Extraction du prix depuis une carte pokemontcg.io ----------
@@ -108,7 +104,6 @@ async function runNameQuery(nameForQuery, attempt = 1){
     const json = await res.json();
     return json.data || [];
   }catch(e){
-    // Petit hoquet réseau : on retente une fois avant d'abandonner.
     if(attempt < 2){
       await new Promise(r => setTimeout(r, 700));
       return runNameQuery(nameForQuery, attempt + 1);
@@ -120,15 +115,12 @@ async function runNameQuery(nameForQuery, attempt = 1){
 async function searchCards(query){
   const q = query.trim();
   if(!q) return [];
-  await dictReady; // s'assure que le dictionnaire FR->EN est chargé
+  await dictReady;
 
   const numMatch = q.match(/(\d{1,4})\s*$/);
   const rawName = q.replace(/\d+\s*$/, "").trim() || q;
   const translatedName = translateQuery(rawName) || rawName;
 
-  // 1) on essaie avec le nom traduit (anglais) ; 2) si rien, on retente avec
-  // le texte brut tapé par l'utilisateur (au cas où c'était déjà en anglais
-  // ou que la traduction a été trop agressive).
   let results = await runNameQuery(translatedName);
   if(!results.length && normalizeAccents(translatedName) !== normalizeAccents(rawName)){
     results = await runNameQuery(rawName);
@@ -144,7 +136,7 @@ async function searchCards(query){
 }
 
 async function fetchCardById(id){
-  const res = await fetch(`${API_BASE}/${id}`);
+  const res = await fetchWithTimeout(`${API_BASE}/${id}`);
   if(!res.ok) throw new Error("Carte introuvable");
   const json = await res.json();
   return json.data;
@@ -154,7 +146,7 @@ async function fetchCardById(id){
 async function refreshCardPrice(item, { force=false } = {}){
   const today = todayStr();
   if(!force && item.history && item.history.length && item.history[item.history.length-1].date === today){
-    return item; // déjà rafraîchi aujourd'hui
+    return item;
   }
   try{
     const data = await fetchCardById(item.id);
@@ -176,6 +168,7 @@ async function refreshCardPrice(item, { force=false } = {}){
 
 async function refreshAllPrices(collection, { force=false } = {}){
   for(const item of collection){
+    if(item.sold) continue; // pas besoin de rafraîchir une carte déjà vendue
     await refreshCardPrice(item, { force });
   }
   saveCollection(collection);
@@ -184,12 +177,13 @@ async function refreshAllPrices(collection, { force=false } = {}){
 
 // ================= UI STATE =================
 let collection = loadCollection();
-let pendingCard = null;   // carte choisie dans les résultats, en attente de confirmation
-let pendingPhoto = null;  // dataURL de la photo
+let pendingCard = null;
+let pendingPhoto = null;
+let currentDetailId = null;
 
 const els = {
-  totalValue: document.getElementById("totalValue"),
-  totalDelta: document.getElementById("totalDelta"),
+  totalInternetValue: document.getElementById("totalInternetValue"),
+  totalRaphValue: document.getElementById("totalRaphValue"),
   cardGrid: document.getElementById("cardGrid"),
   cardCount: document.getElementById("cardCount"),
   emptyState: document.getElementById("emptyState"),
@@ -203,12 +197,17 @@ const els = {
   photoInput: document.getElementById("photoInput"),
   photoPreview: document.getElementById("photoPreview"),
   photoPickerBtn: document.getElementById("photoPickerBtn"),
+  raphValueInput: document.getElementById("raphValueInput"),
   btnAddToCollection: document.getElementById("btnAddToCollection"),
   btnBackToSearch: document.getElementById("btnBackToSearch"),
   btnBackToCollection: document.getElementById("btnBackToCollection"),
   detailContent: document.getElementById("detailContent"),
   toast: document.getElementById("toast"),
   btnRefreshAll: document.getElementById("btnRefreshAll"),
+  soldCount: document.getElementById("soldCount"),
+  soldTotalValue: document.getElementById("soldTotalValue"),
+  soldEmptyState: document.getElementById("soldEmptyState"),
+  soldList: document.getElementById("soldList"),
 };
 
 function showToast(msg, ms=2600){
@@ -223,52 +222,44 @@ function switchTab(tab){
   document.querySelectorAll(".tabBtn").forEach(b => b.classList.toggle("tabBtn--active", b.dataset.tab === tab));
   document.getElementById("view-collection").classList.toggle("view--active", tab === "collection");
   document.getElementById("view-add").classList.toggle("view--active", tab === "add");
+  document.getElementById("view-sold").classList.toggle("view--active", tab === "sold");
   document.getElementById("view-detail").classList.remove("view--active");
+  if(tab === "sold") renderSoldList();
 }
 document.querySelectorAll(".tabBtn").forEach(btn=>{
   btn.addEventListener("click", ()=> switchTab(btn.dataset.tab));
 });
 
 function openDetail(localId){
+  currentDetailId = localId;
   const item = collection.find(c => c.localId === localId);
   if(!item) return;
   renderDetail(item);
   document.querySelectorAll(".view").forEach(v => v.classList.remove("view--active"));
   document.getElementById("view-detail").classList.add("view--active");
 }
-els.btnBackToCollection.addEventListener("click", ()=> switchTab("collection"));
+els.btnBackToCollection.addEventListener("click", ()=>{
+  const item = collection.find(c => c.localId === currentDetailId);
+  switchTab(item && item.sold ? "sold" : "collection");
+});
 
-// ---------- Rendu : total collection ----------
+// ---------- Rendu : total collection (cartes actives, non vendues) ----------
 function renderTotal(){
-  const total = collection.reduce((sum, c) => sum + (c.lastEUR || 0), 0);
-  els.totalValue.textContent = fmtEUR(total);
-
-  // delta = comparaison avec la valeur totale il y a 7 jours (ou la plus ancienne dispo)
-  const past = collection.reduce((sum, c)=>{
-    if(!c.history || !c.history.length) return sum;
-    const ref = c.history.find(h => h.eur !== null) ;
-    return sum + (ref ? ref.eur : 0);
-  },0);
-  if(collection.length === 0){
-    els.totalDelta.textContent = "";
-  } else if(past > 0 && Math.abs(total-past) > 0.01){
-    const diff = total - past;
-    const pct = (diff/past*100).toFixed(1);
-    els.totalDelta.textContent = `${diff>0?"▲":"▼"} ${fmtEUR(Math.abs(diff))} (${diff>0?"+":""}${pct}%) depuis l'ajout`;
-    els.totalDelta.className = "totalSlab__delta " + (diff>0?"up":"down");
-  } else {
-    els.totalDelta.textContent = "Stable depuis l'ajout";
-    els.totalDelta.className = "totalSlab__delta flat";
-  }
+  const active = collection.filter(c => !c.sold);
+  const totalInternet = active.reduce((sum, c) => sum + (c.lastEUR || 0), 0);
+  const totalRaph = active.reduce((sum, c) => sum + (c.raphValue || 0), 0);
+  els.totalInternetValue.textContent = fmtEUR(totalInternet);
+  els.totalRaphValue.textContent = active.some(c => c.raphValue !== null && c.raphValue !== undefined)
+    ? fmtEUR(totalRaph) : "— €";
 }
 
-// ---------- Rendu : grille collection ----------
+// ---------- Rendu : grille collection (cartes actives) ----------
 function renderGrid(){
-  els.cardCount.textContent = collection.length + (collection.length>1 ? " cartes" : " carte");
-  els.emptyState.hidden = collection.length !== 0;
+  const active = collection.filter(c => !c.sold);
+  els.cardCount.textContent = active.length + (active.length>1 ? " cartes" : " carte");
+  els.emptyState.hidden = active.length !== 0;
   els.cardGrid.innerHTML = "";
-  // tri : plus récentes en premier
-  const sorted = [...collection].sort((a,b)=> (b.addedDate||"").localeCompare(a.addedDate||""));
+  const sorted = [...active].sort((a,b)=> (b.addedDate||"").localeCompare(a.addedDate||""));
   for(const item of sorted){
     const delta = cardDelta(item);
     const slab = document.createElement("button");
@@ -282,6 +273,7 @@ function renderGrid(){
         <span class="slab__price">${fmtEUR(item.lastEUR)}</span>
         <span class="slab__deltaTag ${delta.cls}">${delta.label}</span>
       </div>
+      <div class="slab__raphRow"><span>Raph</span><span>${item.raphValue !== null && item.raphValue !== undefined ? fmtEUR(item.raphValue) : "—"}</span></div>
     `;
     slab.addEventListener("click", ()=> openDetail(item.localId));
     els.cardGrid.appendChild(slab);
@@ -355,6 +347,7 @@ function selectCard(card){
   pendingPhoto = null;
   els.photoPreview.hidden = true;
   els.photoInput.value = "";
+  els.raphValueInput.value = "";
   const { eur, usd } = extractPrices(card);
   els.confirmCard.innerHTML = `
     <img src="${card.images && card.images.small}" alt="">
@@ -388,6 +381,8 @@ els.btnAddToCollection.addEventListener("click", async ()=>{
   if(!pendingCard) return;
   const { eur, usd } = extractPrices(pendingCard);
   const today = todayStr();
+  const raphRaw = els.raphValueInput.value;
+  const raphValue = raphRaw !== "" && !isNaN(parseFloat(raphRaw)) ? parseFloat(raphRaw) : null;
   const item = {
     localId: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())),
     id: pendingCard.id,
@@ -400,6 +395,10 @@ els.btnAddToCollection.addEventListener("click", async ()=>{
     lastEUR: eur,
     lastUSD: usd,
     history: [{ date: today, eur, usd }],
+    raphValue: raphValue,
+    sold: false,
+    soldPrice: null,
+    soldDate: null,
   };
   collection.push(item);
   saveCollection(collection);
@@ -408,6 +407,7 @@ els.btnAddToCollection.addEventListener("click", async ()=>{
   els.addStepConfirm.classList.remove("addStep--active");
   els.addStepSearch.classList.add("addStep--active");
   els.searchInput.value = "";
+  els.raphValueInput.value = "";
   els.searchResults.innerHTML = "";
   els.searchStatus.textContent = "";
   renderAll();
@@ -418,6 +418,26 @@ els.btnAddToCollection.addEventListener("click", async ()=>{
 function renderDetail(item){
   const delta = cardDelta(item);
   const history = (item.history||[]).filter(h => h.eur !== null && h.eur !== undefined);
+
+  const soldBlock = item.sold ? `
+    <div class="soldBadge">VENDUE</div>
+    <div class="statRow">
+      <div class="statCard">
+        <div class="statCard__label">Prix de vente</div>
+        <div class="statCard__value up">${fmtEUR(item.soldPrice)}</div>
+      </div>
+      <div class="statCard">
+        <div class="statCard__label">Date de vente</div>
+        <div class="statCard__value" style="font-size:15px;">${fmtDateShort(item.soldDate)}</div>
+      </div>
+    </div>
+    <button class="btnSecondary" id="btnUnsell">Annuler la vente</button>
+  ` : "";
+
+  const sellFormBlock = !item.sold ? `
+    <div id="sellFormWrap"></div>
+  ` : "";
+
   els.detailContent.innerHTML = `
     <div class="detailHero">
       <img src="${item.photo || item.image}" alt="">
@@ -428,9 +448,11 @@ function renderDetail(item){
       </div>
     </div>
 
+    ${soldBlock}
+
     <div class="statRow">
       <div class="statCard">
-        <div class="statCard__label">Valeur actuelle</div>
+        <div class="statCard__label">Valeur internet</div>
         <div class="statCard__value">${fmtEUR(item.lastEUR)}</div>
       </div>
       <div class="statCard">
@@ -439,8 +461,19 @@ function renderDetail(item){
       </div>
     </div>
 
+    <div class="raphEditCard">
+      <div class="raphEditCard__label">Valeur estimée de Raph</div>
+      <div class="raphEditCard__row">
+        <div class="raphInputRow">
+          <input id="raphEditInput" type="number" inputmode="decimal" min="0" step="0.5" value="${item.raphValue !== null && item.raphValue !== undefined ? item.raphValue : ''}" placeholder="Ex : 15">
+          <span class="raphInputRow__suffix">€</span>
+        </div>
+        <button id="btnSaveRaph">Enregistrer</button>
+      </div>
+    </div>
+
     <div class="chartCard">
-      <div class="chartCard__title">Évolution de la valeur</div>
+      <div class="chartCard__title">Évolution de la valeur internet</div>
       ${renderSparkline(history)}
     </div>
 
@@ -455,15 +488,77 @@ function renderDetail(item){
       </div>
     </div>
 
-    <button class="btnDanger" id="btnDeleteCard">Retirer cette carte de la collection</button>
+    ${sellFormBlock}
+
+    <button class="btnDanger" id="btnDeleteCard">Retirer définitivement cette carte</button>
   `;
+
+  document.getElementById("btnSaveRaph").addEventListener("click", ()=>{
+    const raw = document.getElementById("raphEditInput").value;
+    item.raphValue = raw !== "" && !isNaN(parseFloat(raw)) ? parseFloat(raw) : null;
+    saveCollection(collection);
+    renderAll();
+    showToast("Valeur de Raph mise à jour ✓");
+  });
+
+  if(item.sold){
+    document.getElementById("btnUnsell").addEventListener("click", ()=>{
+      item.sold = false;
+      item.soldPrice = null;
+      item.soldDate = null;
+      saveCollection(collection);
+      renderAll();
+      renderDetail(item);
+      showToast("Vente annulée, la carte est de retour dans la collection.");
+    });
+  } else {
+    renderSellForm(item);
+  }
+
   document.getElementById("btnDeleteCard").addEventListener("click", ()=>{
-    if(confirm(`Retirer "${item.name}" de la collection ?`)){
+    if(confirm(`Retirer définitivement "${item.name}" ? Cette action est irréversible.`)){
       collection = collection.filter(c => c.localId !== item.localId);
       saveCollection(collection);
       renderAll();
-      switchTab("collection");
+      switchTab(item.sold ? "sold" : "collection");
     }
+  });
+}
+
+function renderSellForm(item){
+  const wrap = document.getElementById("sellFormWrap");
+  wrap.innerHTML = `<button class="btnGold" id="btnMarkSold">Marquer comme vendue</button>`;
+  document.getElementById("btnMarkSold").addEventListener("click", ()=>{
+    wrap.innerHTML = `
+      <div class="sellForm">
+        <div class="sellForm__title">Confirmer la vente</div>
+        <div class="sellForm__row">
+          <input id="sellPriceInput" type="number" inputmode="decimal" min="0" step="0.5" placeholder="Prix de vente (€)" value="${item.raphValue || ''}">
+          <input id="sellDateInput" type="date" value="${todayStr()}">
+        </div>
+        <div class="sellForm__actions">
+          <button class="btnSecondary" id="btnCancelSell">Annuler</button>
+          <button class="btnGold" id="btnConfirmSell">Confirmer la vente</button>
+        </div>
+      </div>
+    `;
+    document.getElementById("btnCancelSell").addEventListener("click", ()=> renderSellForm(item));
+    document.getElementById("btnConfirmSell").addEventListener("click", ()=>{
+      const price = parseFloat(document.getElementById("sellPriceInput").value);
+      const date = document.getElementById("sellDateInput").value || todayStr();
+      if(isNaN(price) || price < 0){
+        showToast("Indique un prix de vente valide.");
+        return;
+      }
+      item.sold = true;
+      item.soldPrice = price;
+      item.soldDate = date;
+      saveCollection(collection);
+      renderAll();
+      renderSoldList();
+      showToast(`${item.name} marquée comme vendue ✓`);
+      switchTab("sold");
+    });
   });
 }
 
@@ -472,7 +567,7 @@ function renderSparkline(history){
     return `<p style="font-size:13px;color:var(--ink-45);margin:6px 0 2px;">Reviens demain (ou rafraîchis les cotes) pour voir la courbe se dessiner : il faut au moins deux relevés.</p>`;
   }
   const w = 500, h = 140, pad = 10;
-  const values = history.map(h=>h.eur);
+  const values = history.map(pt=>pt.eur);
   const min = Math.min(...values), max = Math.max(...values);
   const range = (max - min) || 1;
   const stepX = (w - pad*2) / (history.length - 1);
@@ -505,6 +600,30 @@ function renderSparkline(history){
   `;
 }
 
+// ---------- Vue Vendues ----------
+function renderSoldList(){
+  const sold = collection.filter(c => c.sold).sort((a,b)=> (b.soldDate||"").localeCompare(a.soldDate||""));
+  const total = sold.reduce((sum,c)=> sum + (c.soldPrice || 0), 0);
+  els.soldCount.textContent = sold.length + (sold.length>1 ? " ventes" : " vente");
+  els.soldTotalValue.textContent = fmtEUR(total);
+  els.soldEmptyState.hidden = sold.length !== 0;
+  els.soldList.innerHTML = "";
+  for(const item of sold){
+    const row = document.createElement("button");
+    row.className = "soldRow";
+    row.innerHTML = `
+      <img src="${item.photo || item.image}" alt="">
+      <span>
+        <span class="soldRow__name">${escapeHTML(item.name)}</span>
+        <span class="soldRow__meta">${fmtDateShort(item.soldDate)}</span>
+      </span>
+      <span class="soldRow__price">${fmtEUR(item.soldPrice)}</span>
+    `;
+    row.addEventListener("click", ()=> openDetail(item.localId));
+    els.soldList.appendChild(row);
+  }
+}
+
 // ---------- Rafraîchir toutes les cotes (bouton header) ----------
 els.btnRefreshAll.addEventListener("click", async ()=>{
   if(!collection.length){ showToast("Ajoute d'abord une carte !"); return; }
@@ -523,13 +642,13 @@ els.btnRefreshAll.addEventListener("click", async ()=>{
 function renderAll(){
   renderTotal();
   renderGrid();
+  renderSoldList();
 }
 
 // ---------- Démarrage ----------
 async function init(){
   renderAll();
-  if(collection.length){
-    // Relevé automatique du jour (une fois par jour, silencieux)
+  if(collection.some(c => !c.sold)){
     await refreshAllPrices(collection, { force:false });
     renderAll();
   }

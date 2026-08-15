@@ -96,23 +96,20 @@ button{ font-family:inherit; }
 .iconBtn.spinning svg{ animation:spin .9s linear infinite; }
 @keyframes spin{ to{ transform:rotate(360deg); } }
 
-.totalSlab__label{
+.totalSlab__stats{
   position:relative;
-  font-size:11.5px; text-transform:uppercase; letter-spacing:1.4px;
+  display:flex; gap:22px;
+}
+.totalSlab__stat{ flex:1; }
+.totalSlab__label{
+  font-size:11px; text-transform:uppercase; letter-spacing:1.2px;
   color:var(--paper-70); font-weight:600;
 }
 .totalSlab__value{
-  position:relative;
   font-family:var(--mono); font-weight:600;
-  font-size:40px; line-height:1.15; margin-top:2px;
+  font-size:28px; line-height:1.2; margin-top:2px;
 }
-.totalSlab__delta{
-  position:relative;
-  font-family:var(--mono); font-size:13px; margin-top:4px; min-height:18px;
-}
-.totalSlab__delta.up{ color:var(--up); }
-.totalSlab__delta.down{ color:var(--down); }
-.totalSlab__delta.flat{ color:var(--paper-70); }
+.totalSlab__value--raph{ color:var(--gold); }
 
 /* ================= LAYOUT / SECTIONS ================= */
 .view{ display:none; padding:20px 18px 10px; }
@@ -188,6 +185,11 @@ button{ font-family:inherit; }
 .slab__deltaTag.up{ color:var(--up); }
 .slab__deltaTag.down{ color:var(--down); }
 .slab__deltaTag.flat{ color:rgba(247,245,239,.45); }
+.slab__raphRow{
+  font-family:var(--mono); font-size:10.5px; color:rgba(247,245,239,.55);
+  margin-top:3px; display:flex; justify-content:space-between;
+}
+.slab__raphRow span:last-child{ color:#fff; font-weight:600; }
 
 /* ================= ADD FLOW ================= */
 .addStep{ display:none; }
@@ -258,6 +260,21 @@ button{ font-family:inherit; }
   cursor:pointer;
 }
 
+.raphInputRow{
+  display:flex; align-items:center; gap:8px;
+  border:1.5px solid rgba(20,19,38,.15); border-radius:var(--radius-sm);
+  padding:0 14px; background:#fff;
+}
+.raphInputRow input{
+  flex:1; border:none; outline:none; padding:13px 0; font-size:15px;
+  font-family:var(--mono); background:transparent; color:var(--ink);
+  -moz-appearance:textfield;
+}
+.raphInputRow input::-webkit-outer-spin-button,
+.raphInputRow input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+.raphInputRow__suffix{ font-family:var(--mono); color:var(--ink-45); font-weight:600; }
+.raphInputRow:focus-within{ outline:2px solid var(--violet); outline-offset:1px; }
+
 /* ================= DETAIL VIEW ================= */
 .detailHero{
   background:var(--slab); color:var(--paper); border-radius:var(--radius-lg);
@@ -293,6 +310,63 @@ button{ font-family:inherit; }
   width:100%; background:none; border:1.5px solid rgba(255,92,114,.4); color:var(--down);
   padding:12px; border-radius:var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer;
 }
+.btnSecondary{
+  width:100%; background:var(--paper-dim); border:none; color:var(--ink);
+  padding:12px; border-radius:var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer;
+  margin-bottom:10px;
+}
+.btnGold{
+  width:100%; background:var(--gold); border:none; color:var(--ink);
+  padding:12px; border-radius:var(--radius-sm); font-weight:700; font-size:13.5px; cursor:pointer;
+  margin-bottom:10px;
+}
+
+.raphEditCard{
+  background:var(--paper-dim); border-radius:var(--radius-md); padding:14px; margin-bottom:18px;
+}
+.raphEditCard__label{ font-size:11px; font-weight:700; color:var(--ink-45); text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px; }
+.raphEditCard__row{ display:flex; gap:8px; }
+.raphEditCard__row .raphInputRow{ flex:1; }
+.raphEditCard__row button{
+  background:var(--ink); color:var(--paper); border:none; border-radius:var(--radius-sm);
+  padding:0 16px; font-weight:700; font-size:13px; cursor:pointer;
+}
+
+.sellForm{
+  background:var(--paper-dim); border-radius:var(--radius-md); padding:14px; margin-bottom:18px;
+}
+.sellForm__title{ font-size:12.5px; font-weight:700; color:var(--ink-70); margin-bottom:10px; text-transform:uppercase; letter-spacing:.5px; }
+.sellForm__row{ display:flex; gap:8px; margin-bottom:10px; }
+.sellForm input{
+  flex:1; border:1.5px solid rgba(20,19,38,.15); border-radius:var(--radius-sm);
+  padding:11px 12px; font-family:var(--mono); font-size:14px; background:#fff; color:var(--ink);
+}
+.sellForm__actions{ display:flex; gap:8px; }
+.sellForm__actions button{ flex:1; }
+
+.soldBadge{
+  background:var(--up); color:#0a2e1f; font-family:var(--mono); font-size:10px; font-weight:700;
+  padding:3px 8px; border-radius:20px; display:inline-block; margin-bottom:8px;
+}
+
+.soldTotalCard{
+  background:var(--slab); color:var(--paper); border-radius:var(--radius-lg);
+  padding:16px 18px; margin-bottom:16px;
+}
+.soldTotalCard__label{ font-size:11px; text-transform:uppercase; letter-spacing:1px; color:rgba(247,245,239,.6); font-weight:700; }
+.soldTotalCard__value{ font-family:var(--mono); font-size:30px; font-weight:600; color:var(--up); margin-top:4px; }
+
+.soldList{ display:flex; flex-direction:column; gap:10px; }
+.soldRow{
+  display:flex; gap:12px; align-items:center;
+  background:#fff; border:1.5px solid rgba(20,19,38,.08);
+  border-radius:var(--radius-md); padding:10px; cursor:pointer;
+}
+.soldRow:active{ transform:scale(.98); }
+.soldRow img{ width:46px; height:64px; object-fit:cover; border-radius:6px; background:var(--paper-dim); }
+.soldRow__name{ font-weight:700; font-size:14px; }
+.soldRow__meta{ font-size:12px; color:var(--ink-45); font-family:var(--mono); margin-top:2px; }
+.soldRow__price{ margin-left:auto; font-family:var(--mono); font-weight:700; color:var(--up); font-size:15px; }
 
 /* ================= TAB BAR ================= */
 .tabBar{

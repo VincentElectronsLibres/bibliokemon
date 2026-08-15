@@ -1,7 +1,7 @@
 {
-  "name": "BiblioKemon",
+  "name": "Bibliokemon de Raph",
   "short_name": "BiblioKemon",
-  "description": "Ta collection de cartes Pokémon, cataloguée et estimée jour après jour.",
+  "description": "La collection de cartes Pokémon de Raph, cataloguée et estimée jour après jour.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
