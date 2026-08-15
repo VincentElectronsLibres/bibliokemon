@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BiblioKemon</title>
+<meta name="description" content="La collection de cartes Pokémon, cataloguée et estimée.">
+<meta name="theme-color" content="#141326">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===== HEADER / SLAB TOTAL ===== -->
+  <header class="totalSlab">
+    <div class="totalSlab__shine" aria-hidden="true"></div>
+    <div class="totalSlab__top">
+      <span class="brand">
+        <span class="brand__mark">B<span class="brand__dot">•</span>K</span>
+        <span class="brand__name">BiblioKemon</span>
+      </span>
+      <button id="btnRefreshAll" class="iconBtn" title="Rafraîchir les cotes">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.75 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>
+      </button>
+    </div>
+    <div class="totalSlab__label">Valeur totale de la collection</div>
+    <div class="totalSlab__value" id="totalValue">— €</div>
+    <div class="totalSlab__delta" id="totalDelta"></div>
+  </header>
+
+  <!-- ===== VIEW: COLLECTION ===== -->
+  <main id="view-collection" class="view view--active">
+    <div class="sectionHead">
+      <h1>Ma collection</h1>
+      <span class="countPill" id="cardCount">0 carte</span>
+    </div>
+    <div id="emptyState" class="emptyState" hidden>
+      <div class="emptyState__badge">Vide pour l'instant</div>
+      <p>Ajoute ta première carte avec l'onglet <strong>Ajouter</strong> en bas de l'écran.</p>
+    </div>
+    <div id="cardGrid" class="cardGrid"></div>
+  </main>
+
+  <!-- ===== VIEW: ADD CARD ===== -->
+  <main id="view-add" class="view">
+    <div class="sectionHead">
+      <h1>Ajouter une carte</h1>
+    </div>
+
+    <div id="addStep-search" class="addStep addStep--active">
+      <label class="fieldLabel" for="searchInput">Nom de la carte</label>
+      <div class="searchRow">
+        <input id="searchInput" type="text" placeholder="Ex : Dracaufeu, Pikachu, Groudon…" autocomplete="off" inputmode="search">
+        <button id="btnSearch" class="btnPrimary">Chercher</button>
+      </div>
+      <p class="hint">Astuce : tu peux ajouter le numéro pour être plus précis, ex. « Groudon 199 ».</p>
+      <div id="searchStatus" class="searchStatus"></div>
+      <div id="searchResults" class="resultList"></div>
+    </div>
+
+    <div id="addStep-confirm" class="addStep">
+      <button class="backLink" id="btnBackToSearch">&larr; Refaire une recherche</button>
+      <div class="confirmCard" id="confirmCard"></div>
+
+      <label class="fieldLabel">Photo de ta carte (optionnel mais conseillé)</label>
+      <div class="photoPicker">
+        <img id="photoPreview" class="photoPreview" hidden>
+        <label for="photoInput" class="photoPicker__btn" id="photoPickerBtn">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9Zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/></svg>
+          <span>Prendre / choisir une photo</span>
+        </label>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+      </div>
+
+      <button id="btnAddToCollection" class="btnPrimary btnPrimary--wide">Ajouter à la collection</button>
+    </div>
+  </main>
+
+  <!-- ===== VIEW: CARD DETAIL ===== -->
+  <main id="view-detail" class="view">
+    <button class="backLink" id="btnBackToCollection">&larr; Retour à la collection</button>
+    <div id="detailContent"></div>
+  </main>
+
+  <!-- ===== BOTTOM NAV ===== -->
+  <nav class="tabBar">
+    <button class="tabBtn tabBtn--active" data-tab="collection">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z"/></svg>
+      <span>Collection</span>
+    </button>
+    <button class="tabBtn" data-tab="add">
+      <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
+      <span>Ajouter</span>
+    </button>
+  </nav>
+
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
