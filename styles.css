@@ -82,6 +82,7 @@ button{ font-family:inherit; }
 }
 .brand__dot{ color:var(--violet); }
 .brand__name{ font-family:var(--display); font-size:14px; letter-spacing:.5px; opacity:.92; }
+.brand__version{ font-family:var(--mono); font-size:10px; color:var(--paper-70); margin-left:2px; }
 
 .iconBtn{
   background:rgba(247,245,239,.10);
