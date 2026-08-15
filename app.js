@@ -89,13 +89,32 @@ function extractPrices(cardData){
 }
 
 // ---------- Appel API : recherche ----------
-async function runNameQuery(nameForQuery){
+async function fetchWithTimeout(url, ms = 9000){
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), ms);
+  try{
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function runNameQuery(nameForQuery, attempt = 1){
   const searchQ = `name:"*${nameForQuery}*"`;
   const url = `${API_BASE}?q=${encodeURIComponent(searchQ)}&pageSize=20&orderBy=-set.releaseDate`;
-  const res = await fetch(url);
-  if(!res.ok) throw new Error("Le service de cartes n'a pas répondu (code " + res.status + ")");
-  const json = await res.json();
-  return json.data || [];
+  try{
+    const res = await fetchWithTimeout(url);
+    if(!res.ok) throw new Error("Le service de cartes n'a pas répondu (code " + res.status + ")");
+    const json = await res.json();
+    return json.data || [];
+  }catch(e){
+    // Petit hoquet réseau : on retente une fois avant d'abandonner.
+    if(attempt < 2){
+      await new Promise(r => setTimeout(r, 700));
+      return runNameQuery(nameForQuery, attempt + 1);
+    }
+    throw e;
+  }
 }
 
 async function searchCards(query){
@@ -307,7 +326,7 @@ async function runSearch(){
     renderResults(results.slice(0,20));
   }catch(e){
     els.btnSearch.disabled = false;
-    els.searchStatus.textContent = "Oups, impossible de contacter le service de cartes. Vérifie ta connexion.";
+    els.searchStatus.textContent = "Oups, le service de cartes n'a pas répondu. Vérifie ta connexion et appuie une nouvelle fois sur « Chercher ».";
     els.searchStatus.className = "searchStatus error";
     console.error(e);
   }

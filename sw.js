@@ -1,4 +1,4 @@
-const CACHE = "bibliokemon-v1";
+const CACHE = "bibliokemon-v2";
 const ASSETS = [
   "./",
   "./index.html",
